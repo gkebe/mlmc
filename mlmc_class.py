@@ -10,53 +10,15 @@ Original file is located at
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from keras.preprocessing.sequence import pad_sequences
-from sklearn.model_selection import train_test_split
-from pytorch_transformers import XLNetModel, XLNetTokenizer, XLNetForSequenceClassification
-from pytorch_transformers import BertModel, BertTokenizer, BertForSequenceClassification
-from pytorch_transformers import AdamW
-from tqdm import tqdm, trange
+from transformers import XLNetTokenizer, XLNetForSequenceClassification
+from transformers import BertTokenizer, BertForSequenceClassification
+from transformers import AdamW
+from tqdm import trange
 import pandas as pd
-import io
 import numpy as np
-import matplotlib.pyplot as plt
 from google.colab import files
-from torch import Tensor
 from torch.nn import BCEWithLogitsLoss
-import torch
-import torch.nn as nn
-import torchvision.transforms as transforms
-from torch.autograd import Variable
-import torch.nn.functional as F
 from sklearn.metrics import f1_score, recall_score, precision_score, multilabel_confusion_matrix
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-n_gpu = torch.cuda.device_count()
-torch.cuda.get_device_name(0)
-
-# Upload train.tsv and validation.tsv
-from google.colab import files
-uploaded = files.upload()
-
-# Represent labels as one-hot encoded vectors
-train_df = pd.read_csv("train.tsv", delimiter='\t')
-test_df = pd.read_csv("validation.tsv", delimiter='\t')
-train_tweets = train_df.tweet.values
-test_tweets = test_df.tweet.values
-label_names=["anger","disgust","fear","joy","sadness","surprise"]
-label_ids=[1,2,3,4,5,6]
-train_labels=[]
-for i in range(len(train_df)):
-    train_label=[]
-    for key in label_names:
-        train_label.append(int(train_df.iloc[i][key]))
-    train_labels.append(train_label)
-test_labels=[]
-for i in range(len(test_df)):
-    test_label=[]
-    for key in label_names:
-        test_label.append(int(test_df.iloc[i][key]))
-    test_labels.append(test_label)
-
-# Pre-processing
 import regex as re
 import emoji
 from nltk.stem import PorterStemmer
@@ -64,52 +26,29 @@ from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize, word_tokenize
 import nltk
 from collections import Counter
-from itertools import chain 
-nltk.download('stopwords')
-nltk.download('punkt')
-ps = PorterStemmer()
-def preprocess(tweets, negation_handling = True, links_handling = True, stopword=True):
-  max = 0
-  clean_tweets = []
-  # NLTK stop words
-  stop_words = set(stopwords.words('english')) 
-  for tweet in tweets:
-    if links_handling:
-      # Delete links and mentions
-      tweet = re.sub(r"(?:\@|https?\://)\S+", "", tweet)
-    neg_feature = re.compile(r"^not$|never|[a-z]n't$")   # regular expression for not, n't and never
-    negation = False
-    # Tweet to list of words
-    words=word_tokenize(tweet)
-    if stopword:
-    # Delete the stopwords
-      words = [w for w in words if not w in stop_words]
-    for i in range(len(words)): 
-      if negation_handling:
-        #Add NOT_ to every word after not, n't and never until punctuation
-        if (words[i] not in (',', '.', '?', '!', ';')) & negation:
-            words[i] = "NOT_" + words[i]
-        if neg_feature.search(words[i]):
-            negation = True
-        if words[i] in (',', '.', '?', '!', ';'):
-            negation = False
-    tweet = ' '.join(word for word in words)
-    clean_tweets.append(tweet)
-  #Add begining and end of sentence tokens
-  clean_tweets = [tweet + " [SEP] [CLS]" for tweet in clean_tweets]
-  return clean_tweets
-def t_count(t, val):
-    elements_equal_to_value = tf.equal(t, val)
-    as_ints = tf.cast(elements_equal_to_value, tf.int32)
-    count = tf.reduce_sum(as_ints)
-    return count
-def to_labels(t):
-  print(len(t))
-  print(Counter(list(chain.from_iterable([[label_names[j] for j in range(len(i.tolist())) if i.tolist()[j]==1] for i in t]))))
+from itertools import chain
+
+logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                    datefmt = '%m/%d/%Y %H:%M:%S',
+                    level = logging.INFO)
+logger = logging.getLogger(__name__)
+
+def metrics_frame(preds, labels, label_names):
+    recall_micro = recall_score(labels, preds, average="micro")
+    recall_macro = recall_score(labels, preds, average="macro")
+    precision_micro = precision_score(labels, preds, average="micro")
+    precision_macro = precision_score(labels, preds, average="macro")
+    f1_micro = f1_score(labels, preds, average="micro")
+    f1_macro = f1_score(labels, preds, average="macro")
+    cr = classification_report(labels, preds, labels=list(range(len(label_names))), target_names=label_names)
+    model_metrics = {"Precision, Micro": precision_micro, "Precision, Macro": precision_macro,
+                     "Recall, Micro": recall_micro, "Recall, Macro": recall_macro,
+                     "F1 score, Micro": f1_micro, "F1 score, Macro": f1_macro, "Classification report": cr}
+    return model_metrics
 
 class XLNetForMultiLabelSequenceClassification(XLNetForSequenceClassification):
     r"""
-        Method overriding of XLNetForSequenceClassification to adapt it to multi-label classification 
+        Method overriding of XLNetForSequenceClassification to adapt it to multi-label classification
         Changes: labels vector is extended to the number labels instead of 1
     """
 
@@ -139,7 +78,7 @@ class XLNetForMultiLabelSequenceClassification(XLNetForSequenceClassification):
 
 class BertForMultiLabelSequenceClassification(BertForSequenceClassification):
     r"""
-        Method overriding of BertForSequenceClassification to adapt it to multi-label classification 
+        Method overriding of BertForSequenceClassification to adapt it to multi-label classification
         Changes: labels vector is extended to the number labels instead of 1
     """
 
@@ -166,377 +105,391 @@ class BertForMultiLabelSequenceClassification(BertForSequenceClassification):
 
         return outputs  # (loss), logits, (hidden_states), (attentions)
 
-def xlnet_model(train_tweets, test_tweets, train_labels, test_labels, epochs = 4, batch_size = 32, lr = 3e-5, T=0.5):
-    """
-    lr = learning rate
-    T = probabilistic threshold
-    """
-    tokenizer = XLNetTokenizer.from_pretrained('xlnet-base-cased', do_lower_case=True)
-    MAX_LEN = 128
 
-    tokenized_train = [tokenizer.tokenize(sent) for sent in train_tweets]
-    train_inputs = [tokenizer.convert_tokens_to_ids(x) for x in tokenized_train]
-    train_inputs = pad_sequences(train_inputs, maxlen=MAX_LEN, dtype="long", truncating="post", padding="post")
-    # Create attention masks
-    train_masks = []
-    # Create a mask of 1s for each token followed by 0s for padding
-    for seq in train_inputs:
-      seq_mask = [float(i>0) for i in seq]
-      train_masks.append(seq_mask)
+class InputExample(object):
+    """A single training/test example for simple sequence classification."""
 
-    tokenized_test = [tokenizer.tokenize(sent) for sent in test_tweets]
-    test_inputs = [tokenizer.convert_tokens_to_ids(x) for x in tokenized_test]
-    test_inputs = pad_sequences(test_inputs, maxlen=MAX_LEN, dtype="long", truncating="post", padding="post")
-    # Create attention masks
-    test_masks = []
-    # Create a mask of 1s for each token followed by 0s for padding
-    for seq in test_inputs:
-      seq_mask = [float(i>0) for i in seq]
-      test_masks.append(seq_mask)
+    def __init__(self, guid, text_a, text_b=None, labels=None):
+        """Constructs a InputExample.
 
-    train_inputs = torch.tensor(train_inputs)
-    test_inputs = torch.tensor(test_inputs)
-    train_labels = torch.tensor(train_labels)
-    test_labels = torch.tensor(test_labels)
-    train_masks = torch.tensor(train_masks)
-    test_masks = torch.tensor(test_masks)
+        Args:
+            guid: Unique id for the example.
+            text_a: string. The untokenized text of the first sequence. For single
+            sequence tasks, only this sequence must be specified.
+            text_b: (Optional) string. The untokenized text of the second sequence.
+            Only must be specified for sequence pair tasks.
+            label: (Optional) string. The label of the example. This should be
+            specified for train and dev examples, but not for test examples.
+        """
+        self.guid = guid
+        self.text_a = text_a
+        self.text_b = text_b
+        self.labels = labels
 
-    # Create an iterator of our data with torch DataLoader. This helps save on memory during training because, unlike a for loop, 
-    # with an iterator the entire dataset does not need to be loaded into memory
 
-    train_data = TensorDataset(train_inputs, train_masks, train_labels)
+class InputFeatures(object):
+    """A single set of features of data."""
+
+    def __init__(self, input_ids, input_mask, segment_ids, label_ids):
+        self.input_ids = input_ids
+        self.input_mask = input_mask
+        self.segment_ids = segment_ids
+        self.label_ids = label_ids
+
+
+def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer):
+    """Loads a data file into a list of `InputBatch`s."""
+
+    label_map = {label: i for i, label in enumerate(label_list)}
+
+    features = []
+    for (ex_index, example) in enumerate(examples):
+        tokens_a = tokenizer.tokenize(example.text_a)
+
+        tokens_b = None
+        if example.text_b:
+            tokens_b = tokenizer.tokenize(example.text_b)
+            # Modifies `tokens_a` and `tokens_b` in place so that the total
+            # length is less than the specified length.
+            # Account for [CLS], [SEP], [SEP] with "- 3"
+            _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
+        else:
+            # Account for [CLS] and [SEP] with "- 2"
+            if len(tokens_a) > max_seq_length - 2:
+                tokens_a = tokens_a[:(max_seq_length - 2)]
+
+        # The convention in BERT is:
+        # (a) For sequence pairs:
+        #  tokens:   [CLS] is this jack ##son ##ville ? [SEP] no it is not . [SEP]
+        #  type_ids: 0   0  0    0    0     0       0 0    1  1  1  1   1 1
+        # (b) For single sequences:
+        #  tokens:   [CLS] the dog is hairy . [SEP]
+        #  type_ids: 0   0   0   0  0     0 0
+        #
+        # Where "type_ids" are used to indicate whether this is the first
+        # sequence or the second sequence. The embedding vectors for `type=0` and
+        # `type=1` were learned during pre-training and are added to the wordpiece
+        # embedding vector (and position vector). This is not *strictly* necessary
+        # since the [SEP] token unambigiously separates the sequences, but it makes
+        # it easier for the model to learn the concept of sequences.
+        #
+        # For classification tasks, the first vector (corresponding to [CLS]) is
+        # used as as the "sentence vector". Note that this only makes sense because
+        # the entire model is fine-tuned.
+        tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
+        segment_ids = [0] * len(tokens)
+
+        if tokens_b:
+            tokens += tokens_b + ["[SEP]"]
+            segment_ids += [1] * (len(tokens_b) + 1)
+
+        input_ids = tokenizer.convert_tokens_to_ids(tokens)
+
+        # The mask has 1 for real tokens and 0 for padding tokens. Only real
+        # tokens are attended to.
+        input_mask = [1] * len(input_ids)
+
+        # Zero-pad up to the sequence length.
+        padding = [0] * (max_seq_length - len(input_ids))
+        input_ids += padding
+        input_mask += padding
+        segment_ids += padding
+
+        assert len(input_ids) == max_seq_length
+        assert len(input_mask) == max_seq_length
+        assert len(segment_ids) == max_seq_length
+
+        if all([len(label) == 1 for label in example.labels]):
+            label_ids = label_map[example.labels[0]]
+        else:
+            label_ids = [0] * len(label_list)
+            for label in example.labels:
+                if label != '':
+                    label_id = label_map[label]
+                    label_ids[label_id] = 1
+        if ex_index < 5:
+            logger.info("*** Example ***")
+            logger.info("guid: %s" % (example.guid))
+            logger.info("tokens: %s" % " ".join(
+                [str(x) for x in tokens]))
+            logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
+            logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
+            logger.info(
+                "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+
+            logger.info("labels: %s" % " ".join([str(x) for x in labels]))
+            logger.info("label_ids: %s" % " ".join([str(x) for x in label_ids]))
+
+        features.append(
+            InputFeatures(input_ids=input_ids,
+                          input_mask=input_mask,
+                          segment_ids=segment_ids,
+                          label_ids=label_ids))
+    return features
+
+
+def _truncate_seq_pair(tokens_a, tokens_b, max_length):
+    """Truncates a sequence pair in place to the maximum length."""
+
+    # This is a simple heuristic which will always truncate the longer sequence
+    # one token at a time. This makes more sense than truncating an equal percent
+    # of tokens from each, since if one sequence is very short then each token
+    # that's truncated likely contains more information than a longer sequence.
+    while True:
+        total_length = len(tokens_a) + len(tokens_b)
+        if total_length <= max_length:
+            break
+        if len(tokens_a) > len(tokens_b):
+            tokens_a.pop()
+        else:
+            tokens_b.pop()
+
+
+class DataProcessor():
+    """Processor for the Frames data set (Wiki_70k version)."""
+
+    def get_train_examples(self, data_path):
+        """See base class."""
+        logger.info("LOOKING AT {}".format(data_path))
+        return self._create_examples(
+            self._read_tsv(data_path), "train")
+
+    def get_dev_examples(self, data_path):
+        """See base class."""
+        return self._create_examples(
+            self._read_tsv(data_path), "dev")
+
+    def get_labels(self, train_path, dev_path):
+        """See base class."""
+        train_examples = self.get_train_examples(train_path)
+        dev_examples = self.get_dev_examples(dev_path)
+
+        labels_2d = [i.labels for i in train_examples] + [i.labels for i in dev_examples]
+        labels_2d = [i for i in labels_2d if i != [""]]
+        return sorted(list(set([j for sub in labels_2d for j in sub])))
+
+    def _create_examples(self, df, set_type):
+        """Creates examples for the training and dev sets."""
+        examples = []
+        lines = df.to_dict(orient='records')
+        for (i, line) in enumerate(lines):
+            if i == 0:
+                continue
+            guid = "%s-%s" % (set_type, i)
+            sentence = line["data"]
+            labels = line["labels"]
+            if str(labels) == "nan":
+                labels = ""
+            examples.append(
+                InputExample(guid=guid, text_a=sentence, labels=str(labels).split(',')))
+        return examples
+
+    @classmethod
+    def _read_tsv(cls, input_file, quotechar=None):
+        """Reads a tab separated value file."""
+        return pd.read_csv(input_file, delimiter='\t')
+
+def main():
+    parser = argparse.ArgumentParser()
+
+    ## Required parameters
+    parser.add_argument("--train_file",
+                        default=None,
+                        type=str,
+                        required=True,
+                        help="The train_path.tsv file with headers.")
+    parser.add_argument("--eval_file",
+                        default=None,
+                        type=str,
+                        required=True,
+                        help="The eval_path.tsv file with headers.")
+
+    parser.add_argument("--model", default=None, type=str, required=True,
+                        help="Pre-trained model selected in the list: bert, xlnet")
+
+    parser.add_argument("--bert_model", default="bert-base-uncased", type=str, required=False,
+                        help="Bert pre-trained model selected in the list: bert-base-uncased, "
+                             "bert-large-uncased, bert-base-cased, bert-large-cased, bert-base-multilingual-uncased, "
+                             "bert-base-multilingual-cased, bert-base-chinese.")
+
+    parser.add_argument("--xlnet_model", default="xlnet-base-cased", type=str, required=False,
+                        help="XLNet pre-trained model selected in the list: xlnet-base-cased, base-base-cased")
+
+    # parser.add_argument("--output_dir",
+    #                     default=None,
+    #                     type=str,
+    #                     required=True,
+    #                     help="The output directory where the model predictions and checkpoints will be written.")
+    # parser.add_argument("--init_checkpoint",
+    #                     default=None,
+    #                     type=str,
+    #                     required=True,
+    #                     help="The checkpoint file from pretraining")
+
+    ## Other parameters
+    parser.add_argument("--train_batch_size",
+                        default=32,
+                        type=int,
+                        help="Total batch size for training.")
+    parser.add_argument("--eval_batch_size",
+                        default=32,
+                        type=int,
+                        help="Total batch size for eval.")
+    parser.add_argument("--learning_rate",
+                        default=2e-5,
+                        type=float,
+                        help="The initial learning rate for Adam.")
+    parser.add_argument("--num_train_epochs",
+                        default=4.0,
+                        type=float,
+                        help="Total number of training epochs to perform.")
+    parser.add_argument("--prob_threshold",
+                        default=0.5,
+                        type=float,
+                        help="Probabilty threshold for multiabel classification.")
+    parser.add_argument("--max_seq_length",
+                        default=128,
+                        type=int,
+                        help="The maximum total input sequence length after WordPiece tokenization. \n"
+                             "Sequences longer than this will be truncated, and sequences shorter \n"
+                             "than this will be padded.")
+    # parser.add_argument("--do_lower_case",
+    #                     action='store_true',
+    #                     help="Set this flag if you are using an uncased model.")
+    #
+    # parser.add_argument('--vocab_file',
+    #                     type=str, default=None, required=True,
+    #                     help="Vocabulary mapping/file BERT was pretrainined on")
+    # parser.add_argument("--config_file",
+    #                     default=None,
+    #                     type=str,
+    #                     required=True,
+    #                     help="The BERT model config")
+
+    args = parser.parse_args()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    n_gpu = torch.cuda.device_count()
+
+    dp = DataProcessor()
+
+    train_examples = dp.get_train_examples("train.tsv")
+    eval_examples = dp.get_dev_examples("dev.tsv")
+    labels = dp.get_labels("train.tsv", "dev.tsv")
+    tokenizers = {
+        "bert": BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True),
+        "xlnet": XLNetTokenizer.from_pretrained(args.xlnet_model, do_lower_case=True),
+    }
+
+    tokenizer = tokenizers[args.model]
+    train_features = convert_examples_to_features(
+        train_examples, labels, args.max_seq_length, tokenizer)
+
+    all_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long)
+    all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
+    all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
+    all_label_ids = torch.tensor([f.label_ids for f in train_features], dtype=torch.long)
+    multi_label = False
+    if all([len(label) == 1 for label in train_examples.labels]):
+        models = {
+            "bert": BertForSequenceClassification.from_pretrained(args.bert_model),
+            "xlnet": XLNetForSequenceClassification.from_pretrained(args.xlnet_model),
+        }
+    else:
+        models = {
+            "bert": BertForMultiLabelSequenceClassification.from_pretrained(bert_model, num_labels=len(labels)),
+            "xlnet": XLNetForMultiLabelSequenceClassification.from_pretrained(xlnet_model, num_labels=len(labels)),
+        }
+        multi_label = True
+    logger.info("device: {} n_gpu: {}".format(
+        device, n_gpu))
+
+    train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
     train_sampler = RandomSampler(train_data)
-    train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=batch_size)
+    train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
+    global_step = 0
+    nb_tr_steps = 0
+    tr_loss = 0
+    model.train()
 
-    test_data = TensorDataset(test_inputs, test_masks, test_labels)
-    test_sampler = SequentialSampler(test_data)
-    test_dataloader = DataLoader(test_data, sampler=test_sampler, batch_size=batch_size)
-    # Load XLNEtForSequenceClassification, the pretrained XLNet model with a single linear classification layer on top. 
+    for _ in trange(int(args.num_train_epochs), desc="Epoch"):
+        tr_loss = 0
+        nb_tr_examples, nb_tr_steps = 0, 0
+        for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
+            batch = tuple(t.to(device) for t in batch)
+            input_ids, input_mask, segment_ids, label_ids = batch
+            loss = model(input_ids, segment_ids, input_mask, label_ids)
+            loss.backward()
 
-    model = XLNetForMultiLabelSequenceClassification.from_pretrained("xlnet-base-cased", num_labels=6)
-    model.cuda()
-    param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'gamma', 'beta'] 
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
-        'weight_decay_rate': 0.01},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
-        'weight_decay_rate': 0.0}
-    ]
-    # This variable contains all of the hyperparemeter information that the training loop needs
-    optimizer = AdamW(optimizer_grouped_parameters,
-                        lr=lr)
-    # Store the loss
-    train_loss_set = []
-    batch_size_ = 0
-    model_metrics_ = []
-    # trange is a tqdm wrapper around the normal python range
-    for _ in trange(epochs, desc="Epoch"):
-      
-      # Tracking variables
-      tr_loss = 0
-      nb_tr_examples, nb_tr_steps = 0, 0
-      
-      # Train the data for one epoch
-      for step, batch in enumerate(train_dataloader):
-        # Add batch to GPU
-        # Training
-        # Set our model to training mode (as opposed to evaluation mode)
-        model.train()
-        batch = tuple(t.to(device) for t in batch)
-        # Unpack the inputs from our dataloader
-        b_input_ids, b_input_mask, b_labels = batch
-        # Clear out the gradients (by default they accumulate)
-        optimizer.zero_grad()
-        # Forward pass
-        outputs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask, labels=b_labels)
-        loss = outputs[0]
-        logits = outputs[1]
-        train_loss_set.append(loss.item())    
-        # Backward pass
-        loss.backward()
-        # Update parameters and take a step using the computed gradient
+            tr_loss += loss.item()
+            nb_tr_examples += input_ids.size(0)
+            nb_tr_steps += 1
+            global_step += 1
+            optimizer.step()
+            optimizer.zero_grad()
 
-        optimizer.step()
-        to_labels(b_labels)
-        
-        # Update tracking variables
-        tr_loss += loss.item()
-        nb_tr_examples += b_input_ids.size(0)
-        nb_tr_steps += 1
-        # test
-        # Put model in evaluation mode to evaluate loss on the test set
-        model.eval()
+    eval_features = convert_examples_to_features(
+        eval_examples, label_list, args.max_seq_length, tokenizer)
+    logger.info("***** Running evaluation *****")
+    logger.info("  Num examples = %d", len(eval_examples))
+    logger.info("  Batch size = %d", args.eval_batch_size)
+    all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
+    all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
+    all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
+    all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
+    eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+    # Run prediction for full data
+    eval_sampler = SequentialSampler(eval_data)
+    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
 
-        # Tracking variables 
-        eval_loss=0
-        nb_eval_steps, nb_eval_examples = 0, 0
-        labels,predictions=[],[]
-        # Evaluate data for one epoch
-        for batch_t in test_dataloader:
-          # Add batch to GPU
-          batch_t = tuple(t.to(device) for t in batch_t)
-          # Unpack the inputs from our dataloader
-          t_b_input_ids, t_b_input_mask, t_b_labels = batch_t
-          # Telling the model not to compute or store gradients, saving memory and speeding up test
-          with torch.no_grad():
-            # Forward pass, calculate logit predictions
-            output = model(t_b_input_ids, token_type_ids=None, attention_mask=t_b_input_mask)
-            logits = output[0]
-          
-          # Move logits and labels to CPU
+    model.eval()
+    eval_loss, eval_accuracy = 0, 0
+    nb_eval_steps, nb_eval_examples = 0, 0
+    preds = None
+    out_label_ids = None
+    for input_ids, input_mask, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
+        input_ids = input_ids.to(device)
+        input_mask = input_mask.to(device)
+        segment_ids = segment_ids.to(device)
+        label_ids = label_ids.to(device)
 
-          prob=torch.sigmoid(logits)
-          # If probability greater than or equal to threshold T the tweet contains that emotion
-          pred = (prob >= T).type(torch.FloatTensor)
-          pred = pred.detach().cpu().numpy().astype(int).tolist()
-          label_ids = t_b_labels.to('cpu').numpy().tolist()
-          labels+=label_ids
-          predictions+=pred
-        labels=np.array(labels)
-        predictions=np.array(predictions)
-        recall_micro=recall_score(labels, predictions, average = "micro")
-        recall_macro=recall_score(labels, predictions, average = "macro")
-        precision_micro=precision_score(labels, predictions, average = "micro")
-        precision_macro=precision_score(labels, predictions, average = "macro")
-        f1_micro=f1_score(labels, predictions, average = "micro")
-        f1_macro=f1_score(labels, predictions, average = "macro")
-        model_metrics={("Precision","Micro"):precision_micro,("Precision","Macro"):precision_macro,
-                      ("Recall","Micro"):recall_micro,("Recall","Macro"):recall_macro,
-                      ("F1 score","Micro"):f1_micro,("F1 score","Macro"):f1_macro}
-        batch_size_ += len(batch[0])
-        print("--------------------------------------------------------------")
-        print(step)
-        print(batch_size_)
-        print(model_metrics)
-        model_metrics_.append(model_metrics)
-      print("Train loss: {}".format(tr_loss/nb_tr_steps))
-    confusion_matrix_ = multilabel_confusion_matrix(labels, predictions)
-    return model_metrics_, confusion_matrix_
+        with torch.no_grad():
+            tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids)
+            logits = model(input_ids, segment_ids, input_mask)
 
-def bert_model(train_tweets, test_tweets, train_labels, test_labels, epochs = 4, batch_size = 32, lr = 3e-5, T=0.5):
-    """
-    lr = learning rate
-    T = probabilistic threshold
-    """
-    tokenizer = BertTokenizer.from_pretrained('bert-base-cased', do_lower_case=True)
-    MAX_LEN = 128
-
-    tokenized_train = [tokenizer.tokenize(sent) for sent in train_tweets]
-    train_inputs = [tokenizer.convert_tokens_to_ids(x) for x in tokenized_train]
-    train_inputs = pad_sequences(train_inputs, maxlen=MAX_LEN, dtype="long", truncating="post", padding="post")
-    # Create attention masks
-    train_masks = []
-    # Create a mask of 1s for each token followed by 0s for padding
-    for seq in train_inputs:
-      seq_mask = [float(i>0) for i in seq]
-      train_masks.append(seq_mask)
-
-    tokenized_test = [tokenizer.tokenize(sent) for sent in test_tweets]
-    test_inputs = [tokenizer.convert_tokens_to_ids(x) for x in tokenized_test]
-    test_inputs = pad_sequences(test_inputs, maxlen=MAX_LEN, dtype="long", truncating="post", padding="post")
-    # Create attention masks
-    test_masks = []
-    # Create a mask of 1s for each token followed by 0s for padding
-    for seq in test_inputs:
-      seq_mask = [float(i>0) for i in seq]
-      test_masks.append(seq_mask)
-
-    train_inputs = torch.tensor(train_inputs)
-    test_inputs = torch.tensor(test_inputs)
-    train_labels = torch.tensor(train_labels)
-    test_labels = torch.tensor(test_labels)
-    train_masks = torch.tensor(train_masks)
-    test_masks = torch.tensor(test_masks)
-
-    # Create an iterator of our data with torch DataLoader. This helps save on memory during training because, unlike a for loop, 
-    # with an iterator the entire dataset does not need to be loaded into memory
-
-    train_data = TensorDataset(train_inputs, train_masks, train_labels)
-    train_sampler = RandomSampler(train_data)
-    train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=batch_size)
-
-    test_data = TensorDataset(test_inputs, test_masks, test_labels)
-    test_sampler = SequentialSampler(test_data)
-    test_dataloader = DataLoader(test_data, sampler=test_sampler, batch_size=batch_size)
-    # Load BertForSequenceClassification, the pretrained BERT model with a single linear classification layer on top. 
-
-    model = BertForMultiLabelSequenceClassification.from_pretrained("bert-base-cased", num_labels=6)
-    model.cuda()
-    param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'gamma', 'beta']
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
-        'weight_decay_rate': 0.01},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
-        'weight_decay_rate': 0.0}
-    ]
-    # This variable contains all of the hyperparemeter information that the training loop needs
-    optimizer = AdamW(optimizer_grouped_parameters,
-                        lr=lr)
-    # Store the loss
-    train_loss_set = []
-
-    model_metrics_ = []
-    
-    batch_size_ = 0
-    # trange is a tqdm wrapper around the normal python range
-    for _ in trange(epochs, desc="Epoch"):
-      
-      # Tracking variables
-      tr_loss = 0
-      nb_tr_examples, nb_tr_steps = 0, 0
-      # Train the data for one epoch
-      for step, batch in enumerate(train_dataloader):      
-        # Training
-        # Set our model to training mode (as opposed to evaluation mode)
-        model.train()
-        # Add batch to GPU
-        batch = tuple(t.to(device) for t in batch)
-        # Unpack the inputs from our dataloader
-        b_input_ids, b_input_mask, b_labels = batch
-        # Clear out the gradients (by default they accumulate)
-        optimizer.zero_grad()
-        # Forward pass
-        outputs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask, labels=b_labels)
-        loss = outputs[0]
-        logits = outputs[1]
-        train_loss_set.append(loss.item())    
-        # Backward pass
-        loss.backward()
-        # Update parameters and take a step using the computed gradient
-
-        optimizer.step()
-        
-        
-        # Update tracking variables
-        tr_loss += loss.item()
-        nb_tr_examples += b_input_ids.size(0)
-        nb_tr_steps += 1
-        to_labels(b_labels)
-        ###########################################################################################################################################################################
-        # test
-        # Put model in evaluation mode to evaluate loss on the test set
-        model.eval()
-
-        # Tracking variables 
-        eval_loss=0
-        nb_eval_steps, nb_eval_examples = 0, 0
-        labels,predictions=[],[]
-        # Evaluate data for one epoch
-        for t_batch in test_dataloader:
-          # Add batch to GPU
-          t_batch = tuple(t.to(device) for t in t_batch)
-          # Unpack the inputs from our dataloader
-          t_b_input_ids, t_b_input_mask, t_b_labels = t_batch
-          # Telling the model not to compute or store gradients, saving memory and speeding up test
-          with torch.no_grad():
-            # Forward pass, calculate logit predictions
-            output = model(t_b_input_ids, token_type_ids=None, attention_mask=t_b_input_mask)
-            logits = output[0]
-          
-          # Move logits and labels to CPU
-
-          prob=torch.sigmoid(logits)
-          # If probability greater than or equal to threshold T the tweet contains that emotion
-          pred = (prob >= T).type(torch.FloatTensor)
-          pred = pred.detach().cpu().numpy().astype(int).tolist()
-          label_ids = t_b_labels.to('cpu').numpy().tolist()
-          labels+=label_ids
-          predictions+=pred
-        labels=np.array(labels)
-        predictions=np.array(predictions)
-        recall_micro=recall_score(labels, predictions, average = "micro")
-        recall_macro=recall_score(labels, predictions, average = "macro")
-        precision_micro=precision_score(labels, predictions, average = "micro")
-        precision_macro=precision_score(labels, predictions, average = "macro")
-        f1_micro=f1_score(labels, predictions, average = "micro")
-        f1_macro=f1_score(labels, predictions, average = "macro")
-        model_metrics={("Precision","Micro"):precision_micro,("Precision","Macro"):precision_macro,
-                      ("Recall","Micro"):recall_micro,("Recall","Macro"):recall_macro,
-                      ("F1 score","Micro"):f1_micro,("F1 score","Macro"):f1_macro}
-        batch_size_ += len(batch[0])
-        print("--------------------------------------------------------------")
-        print(step)
-        print(batch_size_)
-        print(model_metrics)
-        model_metrics_.append(model_metrics)
+            eval_loss += tmp_eval_loss.mean().item()
+        nb_eval_steps += 1
+        if preds is None:
+            preds = logits.detach().cpu().numpy()
+            out_label_ids = label_ids.detach().cpu().numpy()
+        else:
+            preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+            out_label_ids = np.append(out_label_ids, label_ids.detach().cpu().numpy(), axis=0)
 
 
-      print("Train loss: {}".format(tr_loss/nb_tr_steps))
-    confusion_matrix_ = multilabel_confusion_matrix(labels, predictions)
-    return model_metrics_, confusion_matrix_
 
-# Grid Search for hyper-parameter tuning
-from sklearn.model_selection import KFold
-hps = [
-(4, 32, 2e-5,0.5),
-(2, 32, 2e-5,0.5),
-(3, 32, 2e-5,0.5),
-(3, 48, 2e-5,0.5),
-(4, 32, 3e-5,0.3),
-(4, 32, 3e-5,0.5),
-(4, 32, 3e-5,0.8),
-]
-kfold_tweets = preprocess(train_tweets)
-# 10-fold cross validation
-cv = KFold(n_splits=10, random_state=42, shuffle=False)
-val_scores = []
-for epochs, batch_size, lr, T in hps:
-  hp_scores = []
-  for train_index, test_index in cv.split(kfold_tweets):
-    tr_tweets = preprocess(train_tweets[train_index])
-    va_tweets = preprocess(train_tweets[test_index])
-    tr_labels = [train_labels[i] for i in train_index]
-    va_labels = [train_labels[i] for i in test_index]
-    hp_scores.append(xlnet_model(tr_tweets, va_tweets, tr_labels, va_labels, epochs, batch_size, lr, T)[0])
-  hp_score_df = pd.DataFrame(hp_scores)
-  hp_score = dict(hp_score_df.mean())
-  val_scores.append((str(epochs)+", "+str(batch_size)+", "+str(lr)+", "+str(T), hp_score))
+    eval_loss = eval_loss / nb_eval_steps
 
-# Grid Search for hyper-parameter tuning
-from sklearn.model_selection import KFold
-hps = [
-(4, 32, 2e-5,0.5),
-(2, 32, 2e-5,0.5),
-(3, 32, 2e-5,0.5),
-(3, 48, 2e-5,0.5),
-(4, 32, 3e-5,0.3),
-(4, 32, 3e-5,0.5),
-(4, 32, 3e-5,0.8),
-]
-kfold_tweets = preprocess(train_tweets)
-# 10-fold cross validation
-cv = KFold(n_splits=10, random_state=42, shuffle=False)
-val_scores = []
-for epochs, batch_size, lr, T in hps:
-  hp_scores = []
-  for train_index, test_index in cv.split(kfold_tweets):
-    tr_tweets = preprocess(train_tweets[train_index])
-    va_tweets = preprocess(train_tweets[test_index])
-    tr_labels = [train_labels[i] for i in train_index]
-    va_labels = [train_labels[i] for i in test_index]
-    hp_scores.append(bert_model(tr_tweets, va_tweets, tr_labels, va_labels, epochs, batch_size, lr, T)[0])
-  hp_score_df = pd.DataFrame(hp_scores)
-  hp_score = dict(hp_score_df.mean())
-  val_scores.append((str(epochs)+", "+str(batch_size)+", "+str(lr)+", "+str(T), hp_score))
+    if multi_label:
+        probs = torch.sigmoid(preds)
+        # If probability greater than or equal to threshold T the tweet contains that emotion
+        preds = (probs >= T).type(torch.FloatTensor)
+    else:
+        preds = np.argmax(preds, axis=1)
+    loss = tr_loss / nb_tr_steps if args.do_train else None
 
-print(val_scores)
+    results = {'eval_loss': eval_loss,
+               'global_step': global_step,
+               'loss': loss}
 
-batch_size = 32
-epochs = 4
-bert_lr = 2e-5
-xl_lr = 3e-5
-T = 0.5
-# testing
-clean_train_tweets, clean_test_tweets = (preprocess(train_tweets), preprocess(test_tweets))
-xlnet_test_scores = xlnet_model(clean_train_tweets, clean_test_tweets, train_labels, test_labels, epochs, batch_size, xl_lr, T)
-bert_test_scores = bert_model(clean_train_tweets, clean_test_tweets, train_labels, test_labels, epochs, batch_size, bert_lr, T)
-print(bert_test_scores[0])
-print(bert_test_scores[1])
-print(xlnet_test_scores[0])
-print(xlnet_test_scores[1])
+    result = metrics_frame(preds, out_label_ids, label_list)
+    results.update(result)
+    print(results)
+    output_eval_file = "eval_results_" + args.train_file.split("/")[-1].split(".")[0] + ".txt"
+    with open(output_eval_file, "w") as writer:
+        logger.info("***** Eval results *****")
+        for key in sorted(results.keys()):
+            logger.info("  %s = %s", key, str(results[key]))
+            writer.write("%s = %s\n" % (key, str(results[key])))
 
-print(xlnet_test_scores[0])
-
-print(bert_test_scores[0])
+if __name__ == "__main__":
+    main()

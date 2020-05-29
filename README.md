@@ -2,4 +2,4 @@
 
 ## Description
 
-Emotion analysis is a very active research field in modern NLP.  The complex nature of emotions makes it also one of the hardest text classification tasks. In this project, I will attempt a multi-label classification of tweets between 5 basic emotions (anger, joy, fear, surprise and sadness) using a novel language representation model with state of the art performance in text classification: XLNet. 
+The complex nature of emotions makes it also one of the hardest text classification tasks. We present a comparative study of state of the art language representation models XLNet and Bert in sentiment analysis, specifically multi-label classification of tweets among 6 basic emotions (anger, disgust, fear, joy, sadness and surprise).

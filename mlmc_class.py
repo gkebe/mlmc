@@ -385,7 +385,7 @@ def main():
     all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
     all_label_ids = torch.tensor([f.label_ids for f in train_features], dtype=torch.long)
     all_labels = [i.labels for i in train_examples]+[i.labels for i in eval_examples]
-    print(all_labels)
+
     multi_label = False
     if all([len(label) == 1 for label in all_labels]):
         models = {
@@ -401,6 +401,7 @@ def main():
     logger.info("device: {} n_gpu: {}".format(
         device, n_gpu))
     model = models[args.model]
+    print(all_label_ids)
     model.to(device)
     train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
     train_sampler = RandomSampler(train_data)

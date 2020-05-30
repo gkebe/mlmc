@@ -384,7 +384,7 @@ def main():
     all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
     all_label_ids = torch.tensor([f.label_ids for f in train_features], dtype=torch.long)
     multi_label = False
-    if all([len(label) == 1 for label in train_examples.labels]):
+    if all([len(label) == 1 for label in [i.labels for i in train_examples]]):
         models = {
             "bert": BertForSequenceClassification.from_pretrained(args.bert_model),
             "xlnet": XLNetForSequenceClassification.from_pretrained(args.xlnet_model),

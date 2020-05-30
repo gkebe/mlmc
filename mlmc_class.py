@@ -21,6 +21,7 @@ import regex as re
 from collections import Counter
 from itertools import chain
 import logging
+import argparse
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',

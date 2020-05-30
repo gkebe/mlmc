@@ -22,6 +22,7 @@ from collections import Counter
 from itertools import chain
 import logging
 import argparse
+from tqdm import tqdm, trange
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',
@@ -405,7 +406,18 @@ def main():
     nb_tr_steps = 0
     tr_loss = 0
     model.train()
-
+    T = args.prob_threshold
+    param_optimizer = list(model.named_parameters())
+    no_decay = ['bias', 'gamma', 'beta']
+    optimizer_grouped_parameters = [
+        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+        'weight_decay_rate': 0.01},
+        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
+        'weight_decay_rate': 0.0}
+    ]
+    # This variable contains all of the hyperparemeter information that the training loop needs
+    optimizer = AdamW(optimizer_grouped_parameters,
+                        lr=args.learning_rate)
     for _ in trange(int(args.num_train_epochs), desc="Epoch"):
         tr_loss = 0
         nb_tr_examples, nb_tr_steps = 0, 0
@@ -423,14 +435,14 @@ def main():
             optimizer.zero_grad()
 
     eval_features = convert_examples_to_features(
-        eval_examples, label_list, args.max_seq_length, tokenizer)
+        eval_examples, labels, args.max_seq_length, tokenizer)
     logger.info("***** Running evaluation *****")
     logger.info("  Num examples = %d", len(eval_examples))
     logger.info("  Batch size = %d", args.eval_batch_size)
     all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
     all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
     all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
-    all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
+    all_label_ids = torch.tensor([f.label_ids for f in eval_features], dtype=torch.long)
     eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
     # Run prediction for full data
     eval_sampler = SequentialSampler(eval_data)
@@ -476,7 +488,7 @@ def main():
                'global_step': global_step,
                'loss': loss}
 
-    result = metrics_frame(preds, out_label_ids, label_list)
+    result = metrics_frame(preds, out_label_ids, labels)
     results.update(result)
     print(results)
     output_eval_file = "eval_results_" + args.train_file.split("/")[-1].split(".")[0] + ".txt"

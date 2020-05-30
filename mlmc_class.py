@@ -387,15 +387,11 @@ def main():
     all_labels = [i.labels for i in train_examples]+[i.labels for i in eval_examples]
     multi_label = False
     if all([len(label) == 1 for label in all_labels]):
-        for i in range(10000):
-            print("yes")
         models = {
             "bert": BertForSequenceClassification.from_pretrained(args.bert_model),
             "xlnet": XLNetForSequenceClassification.from_pretrained(args.xlnet_model),
         }
     else:
-        for i in range(10000):
-            print("yes")
         models = {
             "bert": BertForMultiLabelSequenceClassification.from_pretrained(args.bert_model, num_labels=len(labels)),
             "xlnet": XLNetForMultiLabelSequenceClassification.from_pretrained(args.xlnet_model, num_labels=len(labels)),
@@ -421,6 +417,8 @@ def main():
         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
         'weight_decay_rate': 0.0}
     ]
+    if multi_label:
+        print("Yes")
     # This variable contains all of the hyperparemeter information that the training loop needs
     optimizer = AdamW(optimizer_grouped_parameters,
                         lr=args.learning_rate)

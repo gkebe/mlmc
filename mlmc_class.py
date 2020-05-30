@@ -391,8 +391,8 @@ def main():
         }
     else:
         models = {
-            "bert": BertForMultiLabelSequenceClassification.from_pretrained(bert_model, num_labels=len(labels)),
-            "xlnet": XLNetForMultiLabelSequenceClassification.from_pretrained(xlnet_model, num_labels=len(labels)),
+            "bert": BertForMultiLabelSequenceClassification.from_pretrained(args.bert_model, num_labels=len(labels)),
+            "xlnet": XLNetForMultiLabelSequenceClassification.from_pretrained(args.xlnet_model, num_labels=len(labels)),
         }
         multi_label = True
     logger.info("device: {} n_gpu: {}".format(

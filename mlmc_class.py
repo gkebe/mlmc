@@ -387,6 +387,8 @@ def main():
     all_labels = [i.labels for i in train_examples]+[i.labels for i in eval_examples]
     multi_label = False
     if all([len(label) == 1 for label in all_labels]):
+        for i in range(10000):
+            print("yes")
         models = {
             "bert": BertForSequenceClassification.from_pretrained(args.bert_model),
             "xlnet": XLNetForSequenceClassification.from_pretrained(args.xlnet_model),

@@ -385,6 +385,7 @@ def main():
     all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
     all_label_ids = torch.tensor([f.label_ids for f in train_features], dtype=torch.long)
     all_labels = [i.labels for i in train_examples]+[i.labels for i in eval_examples]
+    print(all_labels)
     multi_label = False
     if all([len(label) == 1 for label in all_labels]):
         models = {
@@ -417,8 +418,7 @@ def main():
         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
         'weight_decay_rate': 0.0}
     ]
-    if multi_label:
-        print("Yes")
+
     # This variable contains all of the hyperparemeter information that the training loop needs
     optimizer = AdamW(optimizer_grouped_parameters,
                         lr=args.learning_rate)

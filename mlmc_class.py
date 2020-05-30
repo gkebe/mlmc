@@ -384,8 +384,9 @@ def main():
     all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
     all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
     all_label_ids = torch.tensor([f.label_ids for f in train_features], dtype=torch.long)
+    all_labels = [i.labels for i in train_examples]+[i.labels for i in eval_examples]
     multi_label = False
-    if all([len(label) == 1 for label in [i.labels for i in train_examples]]):
+    if all([len(label) == 1 for label in all_labels]):
         models = {
             "bert": BertForSequenceClassification.from_pretrained(args.bert_model),
             "xlnet": XLNetForSequenceClassification.from_pretrained(args.xlnet_model),

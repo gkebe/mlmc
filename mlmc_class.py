@@ -399,6 +399,7 @@ def main():
     logger.info("device: {} n_gpu: {}".format(
         device, n_gpu))
     model = models[args.model]
+    model.to(device)
     train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
     train_sampler = RandomSampler(train_data)
     train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)

@@ -392,6 +392,7 @@ def main():
             "xlnet": XLNetForSequenceClassification.from_pretrained(args.xlnet_model),
         }
     else:
+        print("yes")
         models = {
             "bert": BertForMultiLabelSequenceClassification.from_pretrained(args.bert_model, num_labels=len(labels)),
             "xlnet": XLNetForMultiLabelSequenceClassification.from_pretrained(args.xlnet_model, num_labels=len(labels)),

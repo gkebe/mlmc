@@ -9,7 +9,6 @@ Original file is located at
 
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
-from keras.preprocessing.sequence import pad_sequences
 from transformers import XLNetTokenizer, XLNetForSequenceClassification
 from transformers import BertTokenizer, BertForSequenceClassification
 from transformers import AdamW
@@ -20,11 +19,6 @@ from google.colab import files
 from torch.nn import BCEWithLogitsLoss
 from sklearn.metrics import f1_score, recall_score, precision_score, multilabel_confusion_matrix
 import regex as re
-import emoji
-from nltk.stem import PorterStemmer
-from nltk.corpus import stopwords
-from nltk.tokenize import sent_tokenize, word_tokenize
-import nltk
 from collections import Counter
 from itertools import chain
 

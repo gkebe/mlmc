@@ -482,7 +482,7 @@ def main():
     eval_loss = eval_loss / nb_eval_steps
 
     if multi_label:
-        probs = torch.sigmoid(preds)
+        probs = torch.sigmoid(preds, axis=1)
         # If probability greater than or equal to threshold T the tweet contains that emotion
         preds = (probs >= T).type(torch.FloatTensor)
     else:

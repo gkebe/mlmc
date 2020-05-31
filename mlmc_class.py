@@ -485,9 +485,10 @@ def main():
         probs = torch.sigmoid(torch.from_numpy(preds))
         # If probability greater than or equal to threshold T the tweet contains that emotion
         preds = (probs >= T).type(torch.FloatTensor)
+        preds = preds.detach().cpu().numpy()
     else:
         preds = np.argmax(preds, axis=1)
-    loss = tr_loss / nb_tr_steps if args.do_train else None
+    loss = tr_loss / nb_tr_steps
 
     results = {'eval_loss': eval_loss,
                'global_step': global_step,

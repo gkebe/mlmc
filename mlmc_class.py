@@ -429,7 +429,7 @@ def main():
         for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids, label_ids = batch
-            loss = model(input_ids, segment_ids, input_mask, label_ids)
+            loss, _ = model(input_ids = input_ids, token_type_ids = segment_ids, attention_mask = input_mask, labels = label_ids)
             loss.backward()
 
             tr_loss += loss.item()
@@ -465,8 +465,8 @@ def main():
         label_ids = label_ids.to(device)
 
         with torch.no_grad():
-            tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids)
-            logits = model(input_ids, segment_ids, input_mask)
+            tmp_eval_loss, logits = model(input_ids = input_ids, token_type_ids = segment_ids, attention_mask = input_mask, labels = label_ids)[:2]
+            #logits = model(input_ids = input_ids, token_type_ids = segment_ids, attention_mask = input_mask)
 
             eval_loss += tmp_eval_loss.mean().item()
         nb_eval_steps += 1

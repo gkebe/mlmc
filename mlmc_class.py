@@ -497,7 +497,14 @@ def main():
     result = metrics_frame(preds, out_label_ids, labels)
     results.update(result)
     print(results)
-    output_eval_file = "eval_results_" + args.train_file.split("/")[-1].split(".")[0] + ".txt"
+    model_name = args.model
+    if model_name == "bert":
+        model_name = args.bert_model
+    elif model_name == "xlnet":
+        model_name = args.xlnet_model
+
+    output_eval_file = "eval_results_" + model_name + "_" + args.train_file.split("/")[-1].split(".")[0] + ".txt"
+
     with open(output_eval_file, "w") as writer:
         logger.info("***** Eval results *****")
         for key in sorted(results.keys()):

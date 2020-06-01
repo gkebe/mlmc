@@ -369,7 +369,7 @@ def main():
     #                     help="The BERT model config")
 
     args = parser.parse_args()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device('cuda:0')
     n_gpu = torch.cuda.device_count()
     torch.cuda.set_device(0)
     dp = DataProcessor()

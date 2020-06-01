@@ -377,6 +377,7 @@ def main():
     train_examples = dp.get_train_examples(args.train_file)
     eval_examples = dp.get_dev_examples(args.eval_file)
     labels = dp.get_labels(args.train_file, args.eval_file)
+    print(len(labels))
     tokenizers = {
         "bert": BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True),
         "xlnet": XLNetTokenizer.from_pretrained(args.xlnet_model, do_lower_case=True),

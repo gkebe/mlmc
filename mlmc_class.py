@@ -368,9 +368,9 @@ def main():
 
     dp = DataProcessor()
 
-    train_examples = dp.get_train_examples("train.tsv")
-    eval_examples = dp.get_dev_examples("dev.tsv")
-    labels = dp.get_labels("train.tsv", "dev.tsv")
+    train_examples = dp.get_train_examples(args.train_file)
+    eval_examples = dp.get_dev_examples(args.dev_file)
+    labels = dp.get_labels(args.train_file, args.dev_file)
     tokenizers = {
         "bert": BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True),
         "xlnet": XLNetTokenizer.from_pretrained(args.xlnet_model, do_lower_case=True),

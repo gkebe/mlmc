@@ -1,4 +1,1 @@
-pytorch-transformers
-emoji
-pyenchant
-nltk
+transformers

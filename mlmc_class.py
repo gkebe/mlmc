@@ -371,7 +371,7 @@ def main():
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_gpu = torch.cuda.device_count()
-    torch.cuda.set_device(device)
+    torch.cuda.set_device(0)
     dp = DataProcessor()
 
     train_examples = dp.get_train_examples(args.train_file)

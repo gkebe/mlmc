@@ -402,6 +402,7 @@ def main():
         device, n_gpu))
     model = models[args.model]
     print(all_label_ids)
+    print(all_labels)
     model.to(device)
     train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
     train_sampler = RandomSampler(train_data)

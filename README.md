@@ -17,6 +17,7 @@ The code uses the [Hugging Face implementations](https://github.com/huggingface/
                      [--num_train_epochs NUM_TRAIN_EPOCHS] [--prob_threshold PROB_THRESHOLD] [--max_seq_length MAX_SEQ_LENGTH]`
 
 Where:
+
 Required:
 -   `TRAIN_FILE` is the path to the training tsv file with headers data (sentences) and labels (comma separated in case of multi-label classification). See samples.
 -   `EVAL_FILE` is the path to the evaluation tsv file with headers data (sentences) and labels (comma separated in case of multi-label classification). See samples.
@@ -25,6 +26,7 @@ Required:
         `xlnet`
 
 Not required:
+
 -   `BERT_MODEL` specifies the BERT pre-trained model to be used. Possible values:
         `bert-base-uncased
         `bert-large-uncased`

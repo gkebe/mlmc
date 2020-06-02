@@ -28,7 +28,7 @@ Required:
 Not required:
 
 -   `BERT_MODEL` specifies the BERT pre-trained model to be used. Possible values:
-        `bert-base-uncased
+        `bert-base-uncased`
         `bert-large-uncased`
         `bert-base-cased`
         `bert-base-multilingual`

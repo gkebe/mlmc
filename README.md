@@ -18,8 +18,8 @@ The code uses the [Hugging Face implementations](https://github.com/huggingface/
 
 Where:  
 Required:  
--   `TRAIN_FILE` is the path to the training tsv file with headers data (sentences) and labels (comma separated in case of multi-label classification). See samples.
--   `EVAL_FILE` is the path to the evaluation tsv file with headers data (sentences) and labels (comma separated in case of multi-label classification). See samples.
+-   `TRAIN_FILE` is the path to the training tsv file with headers data (sentences) and labels (comma separated in case of multi-label classification). Additional headers are allowed, but the code only uses those 2 headers. See samples.
+-   `EVAL_FILE` is the path to the evaluation tsv file with headers data (sentences) and labels (comma separated in case of multi-label classification). Additional headers are allowed, but the code only uses those 2 headers. See samples.
 -   `MODEL` specifies the pre-trained transformer model to be used.  Possible values: 
         `bert`
         `xlnet`

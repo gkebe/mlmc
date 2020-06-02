@@ -17,12 +17,9 @@ import pandas as pd
 import numpy as np
 from torch.nn import BCEWithLogitsLoss
 from sklearn.metrics import f1_score, recall_score, precision_score, classification_report
-import regex as re
-from collections import Counter
-from itertools import chain
 import logging
 import argparse
-from tqdm import tqdm, trange
+from tqdm import tqdm
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',

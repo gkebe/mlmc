@@ -26,15 +26,19 @@ Required:
 
 Not required:  
 -   `BERT_MODEL` specifies the BERT pre-trained model to be used. Possible values:  
+
         `bert-base-uncased`  
         `bert-large-uncased`  
         `bert-base-cased`  
         `bert-base-multilingual`  
         `bert-base-chinese`  
+        
     The default value is `bert-base-uncased`  
 -   `XLNET_MODEL` specifies the XLNet pre-trained model to be used. Possible values:  
+
         `xlnet-base-cased`  
         `xlnet-large-cased`  
+        
     The default value is `xlnet-base-cased`
 -	`TRAIN_BATCH_SIZE` is the training batch size.
     The default value is `32`

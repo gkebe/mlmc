@@ -35,16 +35,16 @@ Not required:
 -   `XLNET_MODEL` specifies the XLNet pre-trained model to be used. Possible values:  
         `xlnet-base-cased`  
         `xlnet-large-cased`  
-    The default value is `xlnet-base-cased`  
--	`TRAIN_BATCH_SIZE` is the training batch size.  
-    The default value is `32`  
--	`EVAL_BATCH_SIZE` is the evaluation batch size.  
-    The default value is `32`  
-- `LEARNING_RATE` is the initial learning rate for Adam.  
-    The default value is `2e-5`  
-- `NUM_TRAIN_EPOCHS` specifies the number of training epochs to perform.  
-    The default value is `4`  
-- `PROB_THRESHOLD` is the probabilty threshold for multiabel classification.  
-    The default value is `0.5`  
-- `MAX_SEQ_LENGTH` is the maximum total input sequence length after WordPiece tokenization.  
+    The default value is `xlnet-base-cased`
+-	`TRAIN_BATCH_SIZE` is the training batch size.
+    The default value is `32`
+-	`EVAL_BATCH_SIZE` is the evaluation batch size.
+    The default value is `32`
+- `LEARNING_RATE` is the initial learning rate for Adam.
+    The default value is `2e-5`
+- `NUM_TRAIN_EPOCHS` specifies the number of training epochs to perform.
+    The default value is `4`
+- `PROB_THRESHOLD` is the probabilty threshold for multiabel classification.
+    The default value is `0.5`
+- `MAX_SEQ_LENGTH` is the maximum total input sequence length after WordPiece tokenization.
     The default value is `128`  

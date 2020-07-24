@@ -330,6 +330,10 @@ def main():
                         default=32,
                         type=int,
                         help="Total batch size for training.")
+    parser.add_argument("--gpu",
+                        default=0,
+                        type=int,
+                        help="GPU to be used.")
     parser.add_argument("--eval_batch_size",
                         default=32,
                         type=int,
@@ -366,7 +370,12 @@ def main():
     #                     help="The BERT model config")
 
     args = parser.parse_args()
-    device = torch.device('cuda:0')
+    gpu = args.gpu
+    if gpu == -1:
+        device = torch.device('cpu')
+    else:
+        device = torch.device('cuda:'+gpu)
+
     n_gpu = torch.cuda.device_count()
     torch.cuda.set_device(0)
     dp = DataProcessor()
@@ -475,13 +484,19 @@ def main():
             eval_loss += tmp_eval_loss.mean().item()
         nb_eval_steps += 1
         if preds is None:
-            preds = logits.detach().cpu().numpy()
-            out_label_ids = label_ids.detach().cpu().numpy()
+            if gpu == -1:
+                preds = logits.numpy()
+                out_label_ids = label_ids.numpy()
+            else:
+                preds = logits.detach().cpu().numpy()
+                out_label_ids = label_ids.detach().cpu().numpy()
         else:
-            preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
-            out_label_ids = np.append(out_label_ids, label_ids.detach().cpu().numpy(), axis=0)
-
-
+            if gpu == -1:
+                preds = np.append(preds, logits.numpy(), axis=0)
+                out_label_ids = np.append(out_label_ids, label_ids.numpy(), axis=0)
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+                out_label_ids = np.append(out_label_ids, label_ids.detach().cpu().numpy(), axis=0)
 
     eval_loss = eval_loss / nb_eval_steps
 
@@ -489,7 +504,10 @@ def main():
         probs = torch.sigmoid(torch.from_numpy(preds))
         # If probability greater than or equal to threshold T the tweet contains that emotion
         preds = (probs >= T).type(torch.FloatTensor)
-        preds = preds.detach().cpu().numpy()
+        if gpu == -1:
+            preds = preds.numpy()
+        else:
+            preds = preds.detach().cpu().numpy()
     else:
         preds = np.argmax(preds, axis=1)
     loss = tr_loss / nb_tr_steps

@@ -374,7 +374,7 @@ def main():
     if gpu == -1:
         device = torch.device('cpu')
     else:
-        device = torch.device('cuda:'+gpu)
+        device = torch.device('cuda:'+str(gpu))
 
     n_gpu = torch.cuda.device_count()
     torch.cuda.set_device(0)

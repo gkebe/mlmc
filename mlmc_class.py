@@ -59,7 +59,7 @@ class GPT2ForSequenceClassification(GPT2PreTrainedModel):
         self.num_labels = config.num_labels
 
         self.gpt2 = GPT2Model(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.1)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
         self.init_weights()

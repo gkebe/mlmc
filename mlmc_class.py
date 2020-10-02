@@ -11,6 +11,7 @@ import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from transformers import XLNetTokenizer, XLNetForSequenceClassification
 from transformers import BertTokenizer, BertForSequenceClassification
+from transformers import GPT2Tokenizer, GPT2Model, GPT2PreTrainedModel
 from transformers import AdamW
 from tqdm import trange
 import pandas as pd
@@ -20,7 +21,20 @@ from sklearn.metrics import f1_score, recall_score, precision_score, classificat
 import logging
 import argparse
 from tqdm import tqdm
+from torch import nn
+from torch.nn import CrossEntropyLoss, MSELoss
 
+from transformers.modeling_outputs import (
+    BaseModelOutput,
+    BaseModelOutputWithPooling,
+    CausalLMOutput,
+    MaskedLMOutput,
+    MultipleChoiceModelOutput,
+    NextSentencePredictorOutput,
+    QuestionAnsweringModelOutput,
+    SequenceClassifierOutput,
+    TokenClassifierOutput,
+)
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',
                     level = logging.INFO)
@@ -38,6 +52,49 @@ def metrics_frame(preds, labels, label_names):
                      "Recall, Micro": recall_micro, "Recall, Macro": recall_macro,
                      "F1 score, Micro": f1_micro, "F1 score, Macro": f1_macro, "Classification report": cr}
     return model_metrics
+
+class GPT2ForSequenceClassification(GPT2PreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+
+        self.gpt2 = GPT2Model(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        self.init_weights()
+
+    def forward(
+            self, input_ids=None, attention_mask=None, token_type_ids=None,
+            position_ids=None, head_mask=None, inputs_embeds=None, labels=None
+    ):
+        r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
+            Labels for computing the sequence classification/regression loss.
+            Indices should be in :obj:`[0, ..., config.num_labels - 1]`.
+            If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
+            If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        """
+        outputs = self.gpt2(
+            input_ids
+        )
+
+        pooled_output = outputs[0][:-1:]
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+
+        loss = None
+        if labels is not None:
+            if self.num_labels == 1:
+                #  We are doing regression
+                loss_fct = MSELoss()
+                loss = loss_fct(logits.view(-1), labels.view(-1))
+            else:
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+
+        output = (logits,)
+        return ((loss,) + output) if loss is not None else output
 
 class XLNetForMultiLabelSequenceClassification(XLNetForSequenceClassification):
     r"""
@@ -60,6 +117,45 @@ class XLNetForMultiLabelSequenceClassification(XLNetForSequenceClassification):
         # Keep mems, hidden states, attentions if there are in it
         outputs = (logits,) + transformer_outputs[1:]
 
+        if labels is not None:
+            loss_fct = BCEWithLogitsLoss()
+        #Changes: labels vector is extended to the number labels instead of 1
+            loss = loss_fct(logits.view(-1, self.num_labels),
+                            labels.view(-1, self.num_labels).type_as(logits.view(-1, self.num_labels)))
+            outputs = (loss,) + outputs
+
+        return outputs  # (loss), logits, (hidden_states), (attentions)
+
+class GPT2ForMultiLabelSequenceClassification(GPT2PreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+
+        self.gpt2 = GPT2Model(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        self.init_weights()
+
+    def forward(
+            self, input_ids=None, attention_mask=None, token_type_ids=None,
+            position_ids=None, head_mask=None, inputs_embeds=None, labels=None
+    ):
+        r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
+            Labels for computing the sequence classification/regression loss.
+            Indices should be in :obj:`[0, ..., config.num_labels - 1]`.
+            If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
+            If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        """
+        outputs = self.gpt2(
+            input_ids
+        )
+
+        pooled_output = outputs[0][:-1:]
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+        outputs = (logits,)
         if labels is not None:
             loss_fct = BCEWithLogitsLoss()
         #Changes: labels vector is extended to the number labels instead of 1
@@ -130,7 +226,7 @@ class InputFeatures(object):
         self.label_ids = label_ids
 
 
-def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer):
+def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer, gpt2=False):
     """Loads a data file into a list of `InputBatch`s."""
 
     label_map = {label: i for i, label in enumerate(label_list)}
@@ -152,8 +248,12 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
             _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
         else:
             # Account for [CLS] and [SEP] with "- 2"
-            if len(tokens_a) > max_seq_length - 2:
-                tokens_a = tokens_a[:(max_seq_length - 2)]
+            if gpt2:
+                if len(tokens_a) > max_seq_length - 1:
+                    tokens_a = tokens_a[:(max_seq_length - 1)]
+            else:
+                if len(tokens_a) > max_seq_length - 2:
+                    tokens_a = tokens_a[:(max_seq_length - 2)]
 
         # The convention in BERT is:
         # (a) For sequence pairs:
@@ -173,7 +273,10 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
         # For classification tasks, the first vector (corresponding to [CLS]) is
         # used as as the "sentence vector". Note that this only makes sense because
         # the entire model is fine-tuned.
-        tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
+        if gpt2:
+            tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
+        else:
+            tokens = tokens_a + ["[CLS]"]
         segment_ids = [0] * len(tokens)
 
         if tokens_b:
@@ -288,6 +391,7 @@ class DataProcessor():
         """Reads a tab separated value file."""
         return pd.read_csv(input_file, delimiter='\t')
 
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -304,7 +408,7 @@ def main():
                         help="The eval_path.tsv file with headers.")
 
     parser.add_argument("--model", default=None, type=str, required=True,
-                        help="Pre-trained model selected in the list: bert, xlnet")
+                        help="Pre-trained model selected in the list: bert, xlnet, gpt2")
 
     parser.add_argument("--bert_model", default="bert-base-uncased", type=str, required=False,
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
@@ -313,6 +417,12 @@ def main():
 
     parser.add_argument("--xlnet_model", default="xlnet-base-cased", type=str, required=False,
                         help="XLNet pre-trained model selected in the list: xlnet-base-cased, base-base-cased")
+
+    parser.add_argument("--gpt2_model", default="gpt2", type=str, required=False,
+                        help="GPT-2 pre-trained model selected in the list: gpt2, gpt2-medium, gpt2-large, gpt2-xl")
+
+    parser.add_argument("--gpt2_classification_type", default="mean", type=str, required=False,
+                        help="GPT-2 classification type selected in the list: mean, sum, concat, last, first")
 
     # parser.add_argument("--output_dir",
     #                     default=None,
@@ -387,9 +497,10 @@ def main():
     tokenizers = {
         "bert": BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True),
         "xlnet": XLNetTokenizer.from_pretrained(args.xlnet_model, do_lower_case=True),
+        "gpt2": GPT2Tokenizer.from_pretrained(args.gpt2_model)
     }
-
     tokenizer = tokenizers[args.model]
+
     train_features = convert_examples_to_features(
         train_examples, labels, args.max_seq_length, tokenizer)
 
@@ -400,20 +511,26 @@ def main():
     all_labels = [i.labels for i in train_examples]+[i.labels for i in eval_examples]
 
     multi_label = False
+
     if all([len(label) == 1 for label in all_labels]):
         models = {
             "bert": BertForSequenceClassification.from_pretrained(args.bert_model, num_labels=len(labels)),
             "xlnet": XLNetForSequenceClassification.from_pretrained(args.xlnet_model, num_labels=len(labels)),
+            "gpt2": GPT2ForSequenceClassification.from_pretrained(args.gpt2_model, num_labels=len(labels))
         }
     else:
         models = {
             "bert": BertForMultiLabelSequenceClassification.from_pretrained(args.bert_model, num_labels=len(labels)),
             "xlnet": XLNetForMultiLabelSequenceClassification.from_pretrained(args.xlnet_model, num_labels=len(labels)),
+            "gpt2": GPT2ForMultiLabelSequenceClassification.from_pretrained(args.gpt2_model, num_labels=len(labels))
         }
         multi_label = True
     logger.info("device: {} n_gpu: {}".format(
         device, n_gpu))
     model = models[args.model]
+    if args.model == "gpt2":
+        tokenizer.add_special_tokens({'cls_token': '[CLS]'})
+        model.resize_token_embeddings(len(tokenizer))
     model.to(device)
     train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
     train_sampler = RandomSampler(train_data)

@@ -78,7 +78,6 @@ class GPT2ForSequenceClassification(GPT2PreTrainedModel):
         outputs = self.gpt2(
             input_ids
         )
-        print(outputs[2].shape)
         print(outputs[0].shape)
         pooled_output = outputs[0][:-1:]
         pooled_output = self.dropout(pooled_output)

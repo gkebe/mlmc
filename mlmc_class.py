@@ -274,9 +274,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
         # used as as the "sentence vector". Note that this only makes sense because
         # the entire model is fine-tuned.
         if gpt2:
-            tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
-        else:
             tokens = tokens_a + ["[CLS]"]
+        else:
+            tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
         segment_ids = [0] * len(tokens)
 
         if tokens_b:
@@ -500,9 +500,10 @@ def main():
         "gpt2": GPT2Tokenizer.from_pretrained(args.gpt2_model)
     }
     tokenizer = tokenizers[args.model]
-
+    if args.model == "gpt2":
+        tokenizer.add_special_tokens({'cls_token': '[CLS]'})
     train_features = convert_examples_to_features(
-        train_examples, labels, args.max_seq_length, tokenizer)
+        train_examples, labels, args.max_seq_length, tokenizer, gpt2=args.model=="gpt2")
 
     all_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long)
     all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
@@ -529,7 +530,6 @@ def main():
         device, n_gpu))
     model = models[args.model]
     if args.model == "gpt2":
-        tokenizer.add_special_tokens({'cls_token': '[CLS]'})
         model.gpt2.resize_token_embeddings(len(tokenizer))
     model.to(device)
     train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)

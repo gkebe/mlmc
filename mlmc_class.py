@@ -530,7 +530,7 @@ def main():
     model = models[args.model]
     if args.model == "gpt2":
         tokenizer.add_special_tokens({'cls_token': '[CLS]'})
-        model.resize_token_embeddings(len(tokenizer))
+        model.gpt2.resize_token_embeddings(len(tokenizer))
     model.to(device)
     train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
     train_sampler = RandomSampler(train_data)

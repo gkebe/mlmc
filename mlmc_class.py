@@ -230,7 +230,6 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
     """Loads a data file into a list of `InputBatch`s."""
 
     label_map = {label: i for i, label in enumerate(label_list)}
-
     features = []
     multi_label = True
     if all([len(label) == 1 for label in [x.labels for x in examples]]):

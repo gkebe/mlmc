@@ -559,7 +559,6 @@ def main():
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids, label_ids = batch
             loss, _ = model(input_ids = input_ids, token_type_ids = segment_ids, attention_mask = input_mask, labels = label_ids)
-            print(step)
             loss.backward()
 
             tr_loss += loss.item()

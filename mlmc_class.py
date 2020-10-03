@@ -80,7 +80,6 @@ class GPT2ForSequenceClassification(GPT2PreTrainedModel):
         )
 
         pooled_output = outputs[0][:,-1,:]
-        print(pooled_output.shape)
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
 

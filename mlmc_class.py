@@ -90,6 +90,8 @@ class GPT2ForSequenceClassification(GPT2PreTrainedModel):
             pooled_output = torch.max(outputs[0], dim=1)[0]
         elif self.classification_type == "min":
             pooled_output = torch.min(outputs[0], dim=1)[0]
+        elif self.classification_type == "sum":
+            pooled_output = torch.sum(outputs[0], dim=1)
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
 

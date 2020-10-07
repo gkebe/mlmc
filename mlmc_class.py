@@ -62,8 +62,10 @@ class GPT2ForSequenceClassification(GPT2PreTrainedModel):
         self.dropout = nn.Dropout(0.1)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.init_weights()
 
+        self.init_weights()
+    def set_type(self, classification_type):
+        self.classification_type = classification_type
     def forward(
             self, input_ids=None, attention_mask=None, token_type_ids=None,
             position_ids=None, head_mask=None, inputs_embeds=None, labels=None
@@ -78,8 +80,16 @@ class GPT2ForSequenceClassification(GPT2PreTrainedModel):
         outputs = self.gpt2(
             input_ids
         )
-
-        pooled_output = outputs[0][:,-1,:]
+        if self.classification_type == "last":
+            pooled_output = outputs[0][:,-1,:]
+        elif self.classification_type == "first":
+            pooled_output = outputs[0][:,0,:]
+        elif self.classification_type == "mean":
+            pooled_output = torch.mean(outputs[0])
+        elif self.classification_type == "max":
+            pooled_output = torch.max(outputs[0])[0]
+        elif self.classification_type == "min":
+            pooled_output = torch.min(outputs[0])[0]
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
 
@@ -530,6 +540,7 @@ def main():
     model = models[args.model]
     if args.model == "gpt2":
         model.gpt2.resize_token_embeddings(len(tokenizer))
+        model.set_type(args.gpt2_classification_type)
     model.to(device)
     train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
     train_sampler = RandomSampler(train_data)
@@ -641,7 +652,8 @@ def main():
         model_name = args.bert_model
     elif model_name == "xlnet":
         model_name = args.xlnet_model
-
+    elif model_name == "gpt2":
+        model_name = args.gpt2_model
     output_eval_file = "eval_results_" + model_name + "_" + args.train_file.split("/")[-1].split(".")[0] + ".txt"
 
     with open(output_eval_file, "w") as writer:

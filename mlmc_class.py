@@ -656,7 +656,7 @@ def main():
         model_name = args.xlnet_model
     elif model_name == "gpt2":
         model_name = args.gpt2_model + "_" + args.gpt2_classification_type
-    output_eval_file = "eval_results_" + model_name + "_" + "/".join(args.train_file.split("/")[-3:0]).split(".")[0].replace("/", "_") + ".txt"
+    output_eval_file = "eval_results_" + model_name + "_" + "/".join(args.train_file.split("/")[-3:]).split(".")[0].replace("/", "_") + ".txt"
 
     with open(output_eval_file, "w") as writer:
         logger.info("***** Eval results *****")

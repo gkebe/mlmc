@@ -1,5 +1,5 @@
 # Sequence Classification with Transformers
-Code for fine-tuning transformers (XLNet and Bert) on binary, multi-class and multi-label sequence classification tasks.
+Code for fine-tuning transformers (XLNet, Bert and GPT-2) on binary, multi-class and multi-label sequence classification tasks.
 The code uses the [Hugging Face implementations](https://github.com/huggingface/transformers/).
 
 ## Requirements

@@ -2,7 +2,7 @@
 # https://github.com/damnever/pigar
 
 # mlmc_class.py: 17
-numpy == 1.16.4
+numpy == 1.22.0
 
 # mlmc_class.py: 16
 pandas == 0.24.2
